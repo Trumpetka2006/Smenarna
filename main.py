@@ -87,7 +87,11 @@ class Application(tk.Tk):
     def download(self):
         URL="https://www.cnb.cz/en/financial_markets/foreign_exchange_market/exchange_rate_fixing/daily.txt"
         response = requests.get(URL)
-        data = responses.text
+        data = response.text
+        with open("kurzovni_listek.txt", "w") as f:
+            f.write(data)
+        for line in data.splitlines()[2:]:
+            country,currency,amount,code,rate = line.split("|")
         print(data)
         print(type(data))
 
