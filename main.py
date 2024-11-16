@@ -5,6 +5,7 @@ from os.path import basename, splitext
 import tkinter as tk
 from tkinter import LEFT, RIGHT, ttk
 import requests
+import math
 
 # from tkinter import ttk
 
@@ -60,6 +61,8 @@ class Application(tk.Tk):
         self.ammount = tk.StringVar()
         self.rate = tk.StringVar()
         self.exrate = {}
+        self.input = tk.IntVar()
+        self.output = tk.IntVar()
 
         self.chboxAuto = tk.Checkbutton(
             self,
@@ -95,8 +98,8 @@ class Application(tk.Tk):
         self.combo.bind("<<ComboboxSelected>>", self.on_select)
        
         self.rateFrame = tk.LabelFrame(self, text="Kurz")
-        self.amLabel = tk.Label(self.rateFrame, text="CZK")
-        self.raLabel = tk.Label(self.rateFrame, text="UNKNOW")
+        self.amLabel = tk.Label(self.rateFrame, text="UNKNOW")
+        self.raLabel = tk.Label(self.rateFrame, text="CZK")
         self.entryAmmount = MyEntry(self.rateFrame,textvariable=self.ammount ,state="readonly")
         self.entryRate = MyEntry(self.rateFrame,textvariable=self.rate , state="readonly")
         self.rateFrame.pack(anchor="w", padx=5)
@@ -104,6 +107,15 @@ class Application(tk.Tk):
         self.amLabel.grid(row=0,column=1)
         self.entryRate.grid(row=1)
         self.raLabel.grid(row=1, column=1)
+
+        self.calcFrame = tk.LabelFrame(self, text="Výpočet")
+        self.calcInput = MyEntry(self.calcFrame, textvariable=self.input)
+        self.calcBtn = tk.Button(self.calcFrame, text="Výpočet", state="disable", command=self.calculate)
+        self.calcOutput = MyEntry(self.calcFrame, textvariable=self.output, state = "readonly")
+        self.calcFrame.pack(anchor="w", padx=5)
+        self.calcInput.pack()
+        self.calcBtn.pack(anchor="e")
+        self.calcOutput.pack()
 
         self.btn = tk.Button(self, text="Quit", command=self.quit)
         self.btn.pack()
@@ -120,7 +132,9 @@ class Application(tk.Tk):
             print(self.feemod)
             self.ammount.set(info[0])
             self.rate.set(info[1] * self.feemod)
-            self.raLabel.config(text=info[2])
+            self.amLabel.config(text=info[2])
+            if self.varTransaction.get == "purchace" or "sale":
+                self.calcBtn.config(state= "normal")
     
     def changeTransaction(self,event = None):
         if self.varTransaction.get() == "purchace":
@@ -128,7 +142,14 @@ class Application(tk.Tk):
         else:
             self.feemod = 1 + (0.01 * self.fee)
         self.on_select(None)
+        if self.exrate != {}:
+            self.calcBtn.config(state= "normal")
 
+    def calculate(self, event=None):
+        if self.varTransaction.get() == "purchace":
+            self.output.set(math.floor((self.input.get()/float(self.ammount.get()))*float(self.rate.get())))
+        elif self.varTransaction.get() == "sale":
+            self.output.set(math.ceil((self.input.get()/float(self.ammount.get()))*float(self.rate.get())))
 
 
     def chbtnAutoClick(self, event=None):
