@@ -6,7 +6,7 @@ import tkinter as tk
 from tkinter import LEFT, RIGHT, ttk
 import requests
 import math
-
+import os
 # from tkinter import ttk
 
 
@@ -122,6 +122,20 @@ class Application(tk.Tk):
         self.btn2 = tk.Button(self, text="About", command=self.about)
         self.btn2.pack()
 
+        if os.path.exists("settings.txt"):
+            with open("settings.txt", "r") as f:
+                if f.read() == "1":
+                    self.varAuto.set(True)
+                else:
+                    self.varAuto.set(False)
+                f.close()
+                print(self.varAuto.get())
+        else:
+            print("Save dont exist")
+
+        if self.varAuto.get():
+            self.download()
+
     def on_select(self,event = None):
         selected = self.currency.get()
         print(selected)
@@ -153,10 +167,18 @@ class Application(tk.Tk):
 
 
     def chbtnAutoClick(self, event=None):
-        if self.varAuto.get():
-            self.btnDownload.configure(state="disabled")
-        else:
-            self.btnDownload.configure(state="normal")
+        with open("settings.txt", "w") as f:
+            if self.varAuto.get():
+                self.btnDownload.configure(state="disabled")
+                f.write("1")
+                f.close()
+                self.download()
+            else:
+                f.write("0")
+                f.close()
+                self.btnDownload.configure(state="normal")
+            
+        
 
     def about(self):
         window = About(self)
