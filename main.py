@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import LEFT, RIGHT, ttk
 import requests
 import math
+import datetime as dt
 import os
 # from tkinter import ttk
 
@@ -34,7 +35,9 @@ class About(tk.Toplevel):
         super().__init__(parent, class_=parent.name)
         self.config()
 
-        btn = tk.Button(self, text="Konec", command=self.close)
+        self.lbl = tk.Label(self, text="Chyba")
+        btn = tk.Button(self, text="OK", command=self.close)
+        self.lbl.pack()
         btn.pack()
 
     def close(self):
@@ -43,7 +46,7 @@ class About(tk.Toplevel):
 
 class Application(tk.Tk):
     name = basename(splitext(basename(__file__.capitalize()))[0])
-    name = "Foo"
+    name = "Smenarna"
 
     def __init__(self):
         super().__init__(className=self.name)
@@ -80,6 +83,7 @@ class Application(tk.Tk):
         self.lblFrame = tk.LabelFrame(self, text="Transakce")
         self.lblFrame.pack(anchor="w", padx=5)
         self.varTransaction = tk.StringVar()
+        self.varTransaction.set("None")
         self.rbtnPurchase = tk.Radiobutton(
             self.lblFrame, value="purchace", variable=self.varTransaction, text="Nákup", command=self.changeTransaction
         )
@@ -112,10 +116,14 @@ class Application(tk.Tk):
         self.calcInput = MyEntry(self.calcFrame, textvariable=self.input)
         self.calcBtn = tk.Button(self.calcFrame, text="Výpočet", state="disable", command=self.calculate)
         self.calcOutput = MyEntry(self.calcFrame, textvariable=self.output, state = "readonly")
+        self.inLabel = tk.Label(self.calcFrame, text="UNKNOW")
+        self.ouLabel = tk.Label(self.calcFrame, text="CZK")
         self.calcFrame.pack(anchor="w", padx=5)
-        self.calcInput.pack()
-        self.calcBtn.pack(anchor="e")
-        self.calcOutput.pack()
+        self.calcInput.grid(row=0,column=0)
+        self.inLabel.grid(row=0, column=1)
+        self.calcBtn.grid(row=2, column=0)
+        self.calcOutput.grid(row=1,column=0)
+        self.ouLabel.grid(row=1, column=1)
 
         self.btn = tk.Button(self, text="Quit", command=self.quit)
         self.btn.pack()
@@ -126,6 +134,7 @@ class Application(tk.Tk):
             with open("settings.txt", "r") as f:
                 if f.read() == "1":
                     self.varAuto.set(True)
+                    self.btnDownload.config(state="disable")
                 else:
                     self.varAuto.set(False)
                 f.close()
@@ -135,8 +144,21 @@ class Application(tk.Tk):
 
         if self.varAuto.get():
             self.download()
+        self.load_date()
+
+    def load_date(self):
+        if os.path.exists("kurzovni_listek.txt"):
+            with open("kurzovni_listek.txt", "r") as f:
+                file_date = f.readline()
+                f.close()
+            print(file_date)
+            date = dt.datetime.now()
+            if int(file_date[:2]) < date.day -1 or file_date[3:6] != date.strftime("%b").upper() or int(file_date[7:12]) != date.year:
+                print("Not up to date!")
+                print(date.strftime("%b").upper())
 
     def on_select(self,event = None):
+        self.output.set(0)
         selected = self.currency.get()
         print(selected)
         if self.exrate == {}:
@@ -147,10 +169,12 @@ class Application(tk.Tk):
             self.ammount.set(info[0])
             self.rate.set(info[1] * self.feemod)
             self.amLabel.config(text=info[2])
-            if self.varTransaction.get == "purchace" or "sale":
+            self.inLabel.config(text=info[2])
+            if self.varTransaction.get() == "purchace" or self.varTransaction.get() == "sale":
                 self.calcBtn.config(state= "normal")
     
     def changeTransaction(self,event = None):
+        self.output.set(0)
         if self.varTransaction.get() == "purchace":
             self.feemod = 1 - (0.01 * self.fee)
         else:
@@ -196,6 +220,18 @@ class Application(tk.Tk):
                 f.write(data)
         except requests.exceptions.ConnectionError as e:
             print(f"Error: {e}")
+            print("Falling back to local file")
+            errwindow = About(self)
+            errwindow.lbl.config(text="Nebylo možné stáhonut kurzovní lístke.\nZkontrolujet přípojení k internetu")
+            errwindow.grab_set()
+
+            if os.path.exists("kurzovni_listek.txt"):
+                with open("kurzovni_listek.txt", "r") as f:
+                    data = f.read()
+                    f.close()
+            else:
+                print("Critical error!")
+                self.destroy()
 
         for line in data.splitlines()[2:]:
             country, currency, amount, code, rate = line.split("|")
