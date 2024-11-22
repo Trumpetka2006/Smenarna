@@ -3,7 +3,7 @@
 from cgitb import text
 from os.path import basename, splitext
 import tkinter as tk
-from tkinter import LEFT, RIGHT, ttk
+from tkinter import LEFT, RIGHT, ttk, messagebox
 import requests
 import math
 import datetime as dt
@@ -56,8 +56,7 @@ class Application(tk.Tk):
 
         self.title(self.name)
         self.bind("<Escape>", self.quit)
-        self.lbl = tk.Label(self, text="Hello World")
-        self.lbl.pack()
+        
 
         self.varAuto = tk.BooleanVar()
         self.currency = tk.StringVar()
@@ -67,17 +66,22 @@ class Application(tk.Tk):
         self.input = tk.IntVar()
         self.output = tk.IntVar()
 
+        self.tickFrame = tk.LabelFrame(self, text="Kurzovní lístek")
+        self.tickState = tk.Label(self.tickFrame, text="Stav kurzovního lístku")
+        self.tickState.pack()
         self.chboxAuto = tk.Checkbutton(
-            self,
+            self.tickFrame,
             text="Automaticky stahovat kurzovní lístek",
             variable=self.varAuto,
             command=self.chbtnAutoClick,
         )
-        self.chboxAuto.pack()
+
 
         self.btnDownload = tk.Button(
-            self, text="Stáhnout kurzovní lístek", command=self.download
+            self.tickFrame, text="Stáhnout kurzovní lístek", command=self.download
         )
+        self.tickFrame.pack(anchor="w", padx=5)
+        self.chboxAuto.pack()
         self.btnDownload.pack()
         
         self.lblFrame = tk.LabelFrame(self, text="Transakce")
@@ -129,6 +133,8 @@ class Application(tk.Tk):
         self.btn.pack()
         self.btn2 = tk.Button(self, text="About", command=self.about)
         self.btn2.pack()
+        
+        self.ammount.set('')
 
         if os.path.exists("settings.txt"):
             with open("settings.txt", "r") as f:
@@ -138,39 +144,42 @@ class Application(tk.Tk):
                 else:
                     self.varAuto.set(False)
                 f.close()
-                print(self.varAuto.get())
         else:
-            print("Save dont exist")
-
+            pass
         if self.varAuto.get():
             self.download()
-        self.load_date()
-
-    def load_date(self):
         if os.path.exists("kurzovni_listek.txt"):
             with open("kurzovni_listek.txt", "r") as f:
-                file_date = f.readline()
+                date_line = f.readline()
+                data = f.read()
                 f.close()
-            print(file_date)
-            date = dt.datetime.now()
-            if int(file_date[:2]) < date.day -1 or file_date[3:6] != date.strftime("%b").upper() or int(file_date[7:12]) != date.year:
-                print("Not up to date!")
-                print(date.strftime("%b").upper())
+            self.load_ticket(data)
+            self.load_date(date_line)
+
+    def load_date(self, file_date):
+        date = dt.datetime.now()
+        self.tickState.configure(text=f"{file_date[:2]} {file_date[3:6]} {file_date[7:12]}")
+        if int(file_date[:2]) < date.day -1 or file_date[3:6] != date.strftime("%b") or int(file_date[7:12]) != date.year:      #          
+            self.tickState.config(bg="red")
+            messagebox.showwarning(title="Lístek není aktuální",message="Váš kurzovní lístek není aktuální,\n pokračujte na vlastní nebezpečí!")
+        else:
+            self.tickState.config(bg="green")
 
     def on_select(self,event = None):
         self.output.set(0)
         selected = self.currency.get()
-        print(selected)
         if self.exrate == {}:
             pass
         else:
-            info = self.exrate[selected]
-            print(self.feemod)
-            self.ammount.set(info[0])
-            self.rate.set(info[1] * self.feemod)
-            self.amLabel.config(text=info[2])
-            self.inLabel.config(text=info[2])
-            if self.varTransaction.get() == "purchace" or self.varTransaction.get() == "sale":
+            try:
+                info = self.exrate[selected]
+                self.ammount.set(info[0])
+                self.rate.set(info[1] * self.feemod)
+                self.amLabel.config(text=info[2])
+                self.inLabel.config(text=info[2])
+            except KeyError:
+                pass
+            if (self.varTransaction.get() == "purchace" or self.varTransaction.get() == "sale") and self.ammount.get() != '':
                 self.calcBtn.config(state= "normal")
     
     def changeTransaction(self,event = None):
@@ -180,7 +189,7 @@ class Application(tk.Tk):
         else:
             self.feemod = 1 + (0.01 * self.fee)
         self.on_select(None)
-        if self.exrate != {}:
+        if self.exrate != {} and self.ammount.get() != '':
             self.calcBtn.config(state= "normal")
 
     def calculate(self, event=None):
@@ -211,6 +220,12 @@ class Application(tk.Tk):
     def quit(self, event=None):
         super().quit()
 
+    def load_ticket(self, ticket):
+        for line in ticket.splitlines()[2:]:
+            country, currency, amount, code, rate = line.split("|")
+            self.exrate[f"{country}({code})"] = [float(amount), float(rate), str(code)]
+        self.combo.config(values=list(self.exrate.keys()))
+
     def download(self):
         URL = "https://www.cnb.cz/en/financial_markets/foreign_exchange_market/exchange_rate_fixing/daily.txt"
         try:
@@ -220,25 +235,20 @@ class Application(tk.Tk):
                 f.write(data)
         except requests.exceptions.ConnectionError as e:
             print(f"Error: {e}")
-            print("Falling back to local file")
-            errwindow = About(self)
-            errwindow.lbl.config(text="Nebylo možné stáhonut kurzovní lístke.\nZkontrolujet přípojení k internetu")
-            errwindow.grab_set()
+            messagebox.showerror(message=f"Nebylo možné stáhonut kurzovní lístke.\nZkontrolujet přípojení k internetu.\n Kód chyby: {e}", title="Chyba stahování")
 
-            if os.path.exists("kurzovni_listek.txt"):
-                with open("kurzovni_listek.txt", "r") as f:
-                    data = f.read()
-                    f.close()
-            else:
-                print("Critical error!")
-                self.destroy()
+        if os.path.exists("kurzovni_listek.txt"):
+            with open("kurzovni_listek.txt", "r") as f:
+                date_info = f.readline()                    
+                data = f.read()
+                f.close()
+        else:
+            print("Critical error!")
+            self.destroy()
+        self.load_ticket(data)
+        self.load_date(date_info)
 
-        for line in data.splitlines()[2:]:
-            country, currency, amount, code, rate = line.split("|")
-            self.exrate[f"{country}({code})"] = [float(amount), float(rate), str(code)]
-        print(data)
-        print(self.exrate)
-        self.combo.config(values=list(self.exrate.keys()))
+        
 
 
 app = Application()
